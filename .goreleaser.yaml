@@ -1,0 +1,51 @@
+# goreleaser config for EngramTier. Triggered by .github/workflows/release.yml
+# on tag v*.*.*. goreleaser creates the GitHub Release with assets, so the
+# publish orchestrator skips upload when this file exists.
+version: 2
+project_name: engram-tier
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: engram-tier
+    main: ./cmd/engram-tier
+    binary: engram-tier
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.Version={{.Version}}
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    # v0.1 targets macOS arm64 + Linux; Windows is explicitly out of scope.
+    ignore:
+      - goos: windows
+
+archives:
+  - id: default
+    builds: [engram-tier]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    format: tar.gz
+    files:
+      - LICENSE
+      - README.md
+      - VERSION
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+snapshot:
+  version_template: '{{ .Version }}-next'
+
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^chore:'
+      - 'Merge pull request'
+      - 'Merge branch'

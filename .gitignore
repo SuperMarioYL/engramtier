@@ -1,0 +1,31 @@
+# build scratch
+.build_metadata*
+.builder_*
+.spawn.*
+.stage_*
+BUILD_SETUP_NEXT_STEPS.md
+PUBLISH_BLOCKED.md
+
+# internal scaffolding not shipped
+.claude/
+CLAUDE.md
+
+# go build / run artifacts
+/engram-tier
+/engram-tier.exe
+*.test
+*.out
+/dist/
+bin/
+
+# demo / runtime logs (produced by the CLI)
+engram-tier.heat.log
+engram-tier.cold.bin
+profile.report
+*.heat.log
+
+# macOS / editor
+.DS_Store
+*.swp
+.vscode/
+.idea/
