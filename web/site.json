@@ -1,0 +1,103 @@
+{
+  "schema": 1,
+  "name": "engramtier",
+  "github": "https://github.com/SuperMarioYL/engramtier",
+  "host": "engramtier.lei6393.com",
+  "lang": { "primary": "en", "toggle": true },
+  "accent": ["#e6a144", "#d97706", "#f59e0b"],
+  "hero": {
+    "eyebrow": {
+      "zh": "本地运行 · 无需云端 · 单二进制",
+      "en": "Self-hosted · No cloud · Single binary"
+    },
+    "headline": {
+      "zh": "让 Qwen3.8 塞进你的 Mac\n只损失个位数吞吐",
+      "en": "Fit Qwen3.8 in your Mac\nLose only single-digit throughput"
+    },
+    "sub": {
+      "zh": "EngramTier 探测 Qwen3.8 的 24GB n-gram 表中哪些条目你真正在用，把冷数据搬到 SSD，让模型住进本地内存。",
+      "en": "EngramTier profiles which entries of Qwen3.8's 24GB n-gram table your workload actually hits, then offloads the cold majority to SSD so the model fits in local RAM."
+    },
+    "command": "engram-tier profile --model qwen3.8-flash-next --simulate",
+    "cta": {
+      "zh": "查看 GitHub",
+      "en": "View on GitHub"
+    },
+    "ctaGithub": {
+      "zh": "Star ⭐",
+      "en": "Star ⭐"
+    }
+  },
+  "advantages": [
+    {
+      "title": {
+        "zh": "看清热区分布",
+        "en": "See the heat map"
+      },
+      "body": {
+        "zh": "一条命令生成 Pareto 报告：前 10% 的 key 占了多少次查询。如果分布稀疏，SSD 分层就有意义。",
+        "en": "One command generates a Pareto report: what fraction of lookups the top 10% of keys account for. If the distribution is sparse, SSD tiering makes sense."
+      },
+      "chips": [
+        "› Pareto heat report",
+        "› Sparseness gate",
+        "› Per-key access count"
+      ]
+    },
+    {
+      "title": {
+        "zh": "冷数据搬走，热数据留下",
+        "en": "Cold entries out, hot entries stay"
+      },
+      "body": {
+        "zh": "mmap 把冷的 n-gram 条目映射到 SSD，热区留在 RAM。LRU 保证热数据常驻内存，冷数据按需加载。",
+        "en": "mmap maps cold n-gram entries to SSD while the hot set stays in RAM. An LRU cache keeps frequently accessed entries resident and loads cold ones on demand."
+      },
+      "chips": [
+        "› mmap SSD cold region",
+        "› LRU hot-set caching",
+        "› Goroutine-safe"
+      ]
+    },
+    {
+      "title": {
+        "zh": "一个周末就能验证",
+        "en": "Falsifiable in one weekend"
+      },
+      "body": {
+        "zh": "m1 先跑基准确认稀疏性假设成立，再投入完整实现。不稀疏就停——不浪费第二个周末。",
+        "en": "m1 runs a benchmark to confirm the sparseness assumption before investing in the full implementation. If the table isn't sparse, you stop — no wasted weekends."
+      },
+      "chips": [
+        "› Falsification-first",
+        "› Benchmark harness",
+        "› Kill criteria"
+      ]
+    },
+    {
+      "title": {
+        "zh": "开源核心 + 团队版",
+        "en": "Open core + fleet tier"
+      },
+      "body": {
+        "zh": "单机 profiler 永久免费开源。多机 EngramTier Team（遥测、集中配置、横向对比）走付费路线。",
+        "en": "The single-host profiler is free and open source forever. Multi-box EngramTier Team (telemetry, central config, cross-host comparison) is the paid path."
+      },
+      "chips": [
+        "› MIT licensed",
+        "› Fleet tier $49/box/mo",
+        "› Free single-host forever"
+      ]
+    }
+  ],
+  "scene": {
+    "kind": "hub-nodes",
+    "nodes": ["Hot RAM", "Cold SSD", "NVMe", "LRU Cache", "Pareto"]
+  },
+  "footer": {
+    "tag": {
+      "zh": "MIT 开源 · 本地优先",
+      "en": "MIT open source · local-first"
+    }
+  }
+}
