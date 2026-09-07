@@ -1,0 +1,94 @@
+{
+  "name": "EngramTier",
+  "tagline": "Measure access patterns before choosing a tier.",
+  "architecture": {
+    "title": "Lookup records to working-set estimates",
+    "nodes": [
+      {
+        "title": "Heat log",
+        "detail": "One key per lookup"
+      },
+      {
+        "title": "Collector",
+        "detail": "Counts per n-gram key"
+      },
+      {
+        "title": "Sorted heat map",
+        "detail": "Descending access counts"
+      },
+      {
+        "title": "Profile report",
+        "detail": "Coverage and hot bytes"
+      },
+      {
+        "title": "Latency model",
+        "detail": "Simulation, not measurement"
+      }
+    ],
+    "edges": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        3
+      ],
+      [
+        2,
+        4
+      ]
+    ]
+  },
+  "process": {
+    "title": "Read a ten-lookup example",
+    "steps": [
+      {
+        "title": "Load log",
+        "detail": "Ten lookup records"
+      },
+      {
+        "title": "Count keys",
+        "detail": "Counts 6, 3 and 1"
+      },
+      {
+        "title": "Select coverage",
+        "detail": "90% needs two keys"
+      },
+      {
+        "title": "Report footprint",
+        "detail": "32 B using 16 B entries"
+      }
+    ],
+    "result": "Constructed input geometry; NOT SPARSE verdict."
+  },
+  "integrations": {
+    "title": "Implemented analysis routes",
+    "items": [
+      {
+        "title": "Heat log",
+        "detail": "Colon-separated keys"
+      },
+      {
+        "title": "Text / CSV",
+        "detail": "Profile outputs"
+      },
+      {
+        "title": "Simulation",
+        "detail": "Coverage sweep"
+      },
+      {
+        "title": "Probe patch",
+        "detail": "Version-specific integration"
+      },
+      {
+        "title": "Tier preview",
+        "detail": "Not a live model server"
+      }
+    ]
+  }
+}

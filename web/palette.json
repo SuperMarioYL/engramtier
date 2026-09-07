@@ -1,0 +1,38 @@
+{
+  "mode": "auto",
+  "id": "56e690-6ae7de-acf6af-f5a11ccb051c",
+  "identity": "https://github.com/supermarioyl/engramtier",
+  "primary": "#56e690",
+  "secondary": "#6ae7de",
+  "highlight": "#acf6af",
+  "dark": {
+    "bg": "#050c0f",
+    "panel": "#0c171a",
+    "code": "#0a1717",
+    "ink": "#eefdef",
+    "muted": "#95b9b3",
+    "line": "#173c2b",
+    "primary": "#56e690",
+    "secondary": "#6ae7de",
+    "highlight": "#acf6af",
+    "accent": "#56e690",
+    "buttonStart": "#328554",
+    "buttonEnd": "#3b817c",
+    "buttonText": "#ffffff"
+  },
+  "light": {
+    "bg": "#f9fefb",
+    "panel": "#f7fef9",
+    "code": "#f3fdf7",
+    "ink": "#132a24",
+    "muted": "#557b76",
+    "line": "#cbf7dd",
+    "primary": "#318252",
+    "secondary": "#3a7e7a",
+    "highlight": "#577d59",
+    "accent": "#318252",
+    "buttonStart": "#328554",
+    "buttonEnd": "#3b817c",
+    "buttonText": "#ffffff"
+  }
+}

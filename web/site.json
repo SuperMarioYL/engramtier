@@ -1,103 +1,229 @@
 {
-  "schema": 1,
-  "name": "engramtier",
+  "schema": 3,
+  "name": "EngramTier",
   "github": "https://github.com/SuperMarioYL/engramtier",
   "host": "engramtier.lei6393.com",
-  "lang": { "primary": "en", "toggle": true },
-  "accent": ["#e6a144", "#d97706", "#f59e0b"],
+  "palette": "auto",
+  "lang": {
+    "primary": "en",
+    "toggle": true
+  },
+  "meta": {
+    "visual_profile": "neon-particle",
+    "demo_source": "docs/demo-results.json",
+    "implementation_version": "0.1.0"
+  },
   "hero": {
     "eyebrow": {
-      "zh": "本地运行 · 无需云端 · 单二进制",
-      "en": "Self-hosted · No cloud · Single binary"
+      "zh": "N-GRAM 日志 · 工作集分析",
+      "en": "N-GRAM LOGS · WORKING-SET ANALYSIS"
     },
     "headline": {
-      "zh": "让 Qwen3.8 塞进你的 Mac\n只损失个位数吞吐",
-      "en": "Fit Qwen3.8 in your Mac\nLose only single-digit throughput"
+      "zh": "哪些条目常用，\n让访问日志回答。",
+      "en": "Find the working set.\nStart with lookup logs."
     },
     "sub": {
-      "zh": "EngramTier 探测 Qwen3.8 的 24GB n-gram 表中哪些条目你真正在用，把冷数据搬到 SSD，让模型住进本地内存。",
-      "en": "EngramTier profiles which entries of Qwen3.8's 24GB n-gram table your workload actually hits, then offloads the cold majority to SSD so the model fits in local RAM."
+      "zh": "EngramTier 汇总 n-gram 查询日志，输出访问热度、Pareto 曲线和给定覆盖目标下的工作集大小，帮助检查冷热分层是否值得继续实验。",
+      "en": "EngramTier aggregates n-gram lookup logs into access heat, Pareto curves and working-set sizes at a chosen coverage target, helping you assess whether tiering merits further experiments."
     },
-    "command": "engram-tier profile --model qwen3.8-flash-next --simulate",
+    "href": "#quickstart",
     "cta": {
-      "zh": "查看 GitHub",
-      "en": "View on GitHub"
+      "zh": "运行示例",
+      "en": "Run the example"
     },
     "ctaGithub": {
-      "zh": "Star ⭐",
-      "en": "Star ⭐"
+      "zh": "查看源码",
+      "en": "View source"
+    }
+  },
+  "scene": {
+    "kind": "neon-graph",
+    "fallback": "/assets/presentation/scene-dark.svg",
+    "fallbackLight": "/assets/presentation/scene-light.svg",
+    "caption": {
+      "zh": "先量清访问分布，再讨论冷热分层",
+      "en": "Measure access patterns before choosing a tier."
     }
   },
   "advantages": [
     {
       "title": {
-        "zh": "看清热区分布",
-        "en": "See the heat map"
+        "zh": "保留计数依据",
+        "en": "Keep the count basis"
       },
       "body": {
-        "zh": "一条命令生成 Pareto 报告：前 10% 的 key 占了多少次查询。如果分布稀疏，SSD 分层就有意义。",
-        "en": "One command generates a Pareto report: what fraction of lookups the top 10% of keys account for. If the distribution is sparse, SSD tiering makes sense."
-      },
-      "chips": [
-        "› Pareto heat report",
-        "› Sparseness gate",
-        "› Per-key access count"
-      ]
+        "zh": "每行查询映射到具体 key，重复行累加，不依赖模型叙述访问分布。",
+        "en": "Each lookup line identifies a key and repeated lines accumulate counts."
+      }
     },
     {
       "title": {
-        "zh": "冷数据搬走，热数据留下",
-        "en": "Cold entries out, hot entries stay"
+        "zh": "分开尺寸与覆盖",
+        "en": "Separate size and coverage"
       },
       "body": {
-        "zh": "mmap 把冷的 n-gram 条目映射到 SSD，热区留在 RAM。LRU 保证热数据常驻内存，冷数据按需加载。",
-        "en": "mmap maps cold n-gram entries to SSD while the hot set stays in RAM. An LRU cache keeps frequently accessed entries resident and loads cold ones on demand."
-      },
-      "chips": [
-        "› mmap SSD cold region",
-        "› LRU hot-set caching",
-        "› Goroutine-safe"
-      ]
+        "zh": "表大小、条目大小和覆盖目标都是明确输入，报告展示它们如何影响工作集。",
+        "en": "Table size, entry size and coverage are explicit inputs to the working-set report."
+      }
     },
     {
       "title": {
-        "zh": "一个周末就能验证",
-        "en": "Falsifiable in one weekend"
+        "zh": "模拟与实测分开",
+        "en": "Distinguish simulation"
       },
       "body": {
-        "zh": "m1 先跑基准确认稀疏性假设成立，再投入完整实现。不稀疏就停——不浪费第二个周末。",
-        "en": "m1 runs a benchmark to confirm the sparseness assumption before investing in the full implementation. If the table isn't sparse, you stop — no wasted weekends."
-      },
-      "chips": [
-        "› Falsification-first",
-        "› Benchmark harness",
-        "› Kill criteria"
-      ]
-    },
-    {
-      "title": {
-        "zh": "开源核心 + 团队版",
-        "en": "Open core + fleet tier"
-      },
-      "body": {
-        "zh": "单机 profiler 永久免费开源。多机 EngramTier Team（遥测、集中配置、横向对比）走付费路线。",
-        "en": "The single-host profiler is free and open source forever. Multi-box EngramTier Team (telemetry, central config, cross-host comparison) is the paid path."
-      },
-      "chips": [
-        "› MIT licensed",
-        "› Fleet tier $49/box/mo",
-        "› Free single-host forever"
-      ]
+        "zh": "bench 的吞吐来自延迟模型；profile 的访问计数来自所提供的日志。",
+        "en": "bench derives throughput from a latency model; profile counts come from the supplied log."
+      }
     }
   ],
-  "scene": {
-    "kind": "hub-nodes",
-    "nodes": ["Hot RAM", "Cold SSD", "NVMe", "LRU Cache", "Pareto"]
+  "story": {
+    "intro": {
+      "title": {
+        "zh": "先量清访问分布，再讨论冷热分层",
+        "en": "Measure access patterns before choosing a tier."
+      },
+      "body": {
+        "zh": "表很大不等于访问一定稀疏。先看真实工作负载访问过哪些 key、各访问多少次，才能讨论需要常驻多少条目。EngramTier 将查询日志变成可复查的覆盖曲线；分层后的实际内存与吞吐收益仍需运行时测量。",
+        "en": "A large table is not necessarily accessed sparsely. Before choosing residency, inspect which keys a workload touched and how often. EngramTier turns lookup logs into a reviewable coverage curve; actual memory and throughput effects still require runtime measurements."
+      }
+    },
+    "sections": [
+      {
+        "title": {
+          "zh": "从输入到结果",
+          "en": "From input to result"
+        },
+        "body": {
+          "zh": "自带日志有 10 次查询，3 个 key 的次数为 6、3、1。给定 64 KiB 表大小和 16 字节条目，90% 覆盖对应 2 个 key、32 B 热工作集。例子被判为 NOT SPARSE。表头的 GiB 显示会将小尺寸四舍五入为 0.0 GiB，实际输入仍是 64 KiB。",
+          "en": "The supplied log contains ten lookups with key counts of six, three and one. With an assumed 64 KiB table and 16-byte entries, 90% coverage gives two hot keys totaling 32 B. The example is classified NOT SPARSE. The GiB header rounds this small table to 0.0 GiB; the actual input remains 64 KiB."
+        },
+        "image": {
+          "light": "/assets/presentation/process-light.svg",
+          "dark": "/assets/presentation/process-dark.svg",
+          "alt": {
+            "zh": "从输入到结果",
+            "en": "From input to result"
+          }
+        }
+      },
+      {
+        "title": {
+          "zh": "实现中的分工",
+          "en": "How the implementation fits together"
+        },
+        "body": {
+          "zh": "Collector 按日志行聚合 key 计数，HeatMap 排序后供 Pareto 与 WorkingSet 查询使用。report 生成文本和 CSV；bench 使用同一热度数据及默认延迟模型做数学模拟。probe 保存 llama.cpp 插桩补丁。tier 的 mmap/LRU 组件已经存在，但 serve 只组装预览，并未接入实时模型查询。",
+          "en": "Collector aggregates per-key counts from log lines. A sorted HeatMap feeds Pareto and WorkingSet queries. report writes text and CSV; bench combines the same heat data with a default latency model. probe holds a llama.cpp instrumentation patch. mmap/LRU components exist in tier, but serve is a composition preview without live model lookup wiring."
+        },
+        "image": {
+          "light": "/assets/presentation/architecture-light.svg",
+          "dark": "/assets/presentation/architecture-dark.svg",
+          "alt": {
+            "zh": "实现中的分工",
+            "en": "How the implementation fits together"
+          }
+        }
+      },
+      {
+        "title": {
+          "zh": "接入现有工作流",
+          "en": "Connect existing workflows"
+        },
+        "body": {
+          "zh": "EngramTier 汇总 n-gram 查询日志，输出访问热度、Pareto 曲线和给定覆盖目标下的工作集大小，帮助检查冷热分层是否值得继续实验。",
+          "en": "EngramTier aggregates n-gram lookup logs into access heat, Pareto curves and working-set sizes at a chosen coverage target, helping you assess whether tiering merits further experiments."
+        },
+        "image": {
+          "light": "/assets/presentation/integrations-light.svg",
+          "dark": "/assets/presentation/integrations-dark.svg",
+          "alt": {
+            "zh": "接入现有工作流",
+            "en": "Connect existing workflows"
+          }
+        }
+      }
+    ],
+    "details": [
+      {
+        "title": {
+          "zh": "配置与边界",
+          "en": "Configuration and limits"
+        },
+        "body": {
+          "zh": "serve 尚未接入实时模型查询，不能据该预览声称已节省模型内存或实现 SSD offload。",
+          "en": "serve is not wired into live model lookups; its preview does not establish model memory savings or SSD offload."
+        }
+      }
+    ]
   },
+  "demo": {
+    "title": {
+      "zh": "运行自带示例",
+      "en": "Run the supplied example"
+    },
+    "note": {
+      "zh": "v0.1.0 对构造日志的实际 profile 输出。表尺寸和条目大小是输入假设，不是模型结构或硬件测量；没有执行 SSD offload。",
+      "en": "Actual v0.1.0 profile output for a constructed log. Table and entry sizes are input assumptions, not model or hardware measurements. No SSD offload was executed."
+    },
+    "source": "https://github.com/SuperMarioYL/engramtier/blob/main/docs/demo-results.json",
+    "steps": [
+      {
+        "label": {
+          "zh": "运行 1",
+          "en": "Run 1"
+        },
+        "body": {
+          "zh": "自带日志有 10 次查询，3 个 key 的次数为 6、3、1。给定 64 KiB 表大小和 16 字节条目，90% 覆盖对应 2 个 key、32 B 热工作集。例子被判为 NOT SPARSE。表头的 GiB 显示会将小尺寸四舍五入为 0.0 GiB，实际输入仍是 64 KiB。",
+          "en": "The supplied log contains ten lookups with key counts of six, three and one. With an assumed 64 KiB table and 16-byte entries, 90% coverage gives two hot keys totaling 32 B. The example is classified NOT SPARSE. The GiB header rounds this small table to 0.0 GiB; the actual input remains 64 KiB."
+        },
+        "image": "/assets/presentation/demo-0-light.svg",
+        "imageDark": "/assets/presentation/demo-0-dark.svg",
+        "command": "go run ./cmd/engram-tier profile --heat-log examples/presentation.heat.log --table-bytes 64KiB --entry-bytes 16 --coverage 0.9",
+        "output": "EngramTier access-heat report\n============================\n\nTotal lookups:     10\nDistinct keys hit: 3\nTable size:         0.0 GiB\nHot coverage goal:  90% of lookups\n\nPareto curve (hottest keys first):\n  key fraction   lookup coverage  bytes hot\n  top 33.3     %  60.0%            16 B\n  top 33.3     %  60.0%            16 B\n  top 33.3     %  60.0%            16 B\n  top 33.3     %  60.0%            16 B\n  top 66.7     %  90.0%            32 B\n\nWorking set @ 90% coverage: 2 keys (66.7% of distinct) = 32 B RAM\nCold region (offload to SSD):   64.0 KiB\n\nSparseness verdict: NOT SPARSE — top-10% of keys do NOT cover 80% of lookups: cold-tier thesis FALSIFIED (m2 gated closed).\n"
+      }
+    ]
+  },
+  "quickstart": {
+    "title": {
+      "zh": "运行完整示例",
+      "en": "Run the complete example"
+    },
+    "body": {
+      "zh": "需要 Go 1.24+。构建可能下载模块；下面的日志分析不加载模型，也不需要 GPU。",
+      "en": "Requires Go 1.24+. Building may download modules; the log analysis below loads no model and requires no GPU."
+    },
+    "steps": [
+      {
+        "title": {
+          "zh": "准备环境",
+          "en": "Prepare the environment"
+        },
+        "code": "git clone https://github.com/SuperMarioYL/engramtier.git\ncd engramtier\ngo build -o engram-tier ./cmd/engram-tier"
+      },
+      {
+        "title": {
+          "zh": "运行本地示例",
+          "en": "Run the local example"
+        },
+        "code": "bash docs/demo.sh"
+      }
+    ]
+  },
+  "limitations": [
+    {
+      "zh": "serve 尚未接入实时模型查询，不能据该预览声称已节省模型内存或实现 SSD offload。",
+      "en": "serve is not wired into live model lookups; its preview does not establish model memory savings or SSD offload."
+    },
+    {
+      "zh": "构造访问日志和延迟模拟不能证明任何特定模型/硬件的性能。",
+      "en": "Constructed lookup logs and latency simulation do not establish performance for a particular model or device."
+    }
+  ],
   "footer": {
     "tag": {
-      "zh": "MIT 开源 · 本地优先",
-      "en": "MIT open source · local-first"
+      "zh": "Go 1.24+ · MIT",
+      "en": "Go 1.24+ · MIT"
     }
   }
 }
