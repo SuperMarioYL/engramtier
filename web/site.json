@@ -95,8 +95,8 @@
           "en": "From input to result"
         },
         "body": {
-          "zh": "自带日志有 10 次查询，3 个 key 的次数为 6、3、1。给定 64 KiB 表大小和 16 字节条目，90% 覆盖对应 2 个 key、32 B 热工作集。例子被判为 NOT SPARSE。表头的 GiB 显示会将小尺寸四舍五入为 0.0 GiB，实际输入仍是 64 KiB。",
-          "en": "The supplied log contains ten lookups with key counts of six, three and one. With an assumed 64 KiB table and 16-byte entries, 90% coverage gives two hot keys totaling 32 B. The example is classified NOT SPARSE. The GiB header rounds this small table to 0.0 GiB; the actual input remains 64 KiB."
+          "zh": "自带日志有 10 次查询，3 个 key 的次数为 6、3、1。给定 64 KiB 表大小和 16 字节条目，90% 覆盖对应 2 个 key、32 B 热工作集。例子被判为 NOT SPARSE。",
+          "en": "The supplied log contains ten lookups with key counts of six, three and one. With an assumed 64 KiB table and 16-byte entries, 90% coverage gives two hot keys totaling 32 B. The example is classified NOT SPARSE."
         },
         "image": {
           "light": "/assets/presentation/process-light.svg",
@@ -186,13 +186,13 @@
           "en": "Run 1"
         },
         "body": {
-          "zh": "自带日志有 10 次查询，3 个 key 的次数为 6、3、1。给定 64 KiB 表大小和 16 字节条目，90% 覆盖对应 2 个 key、32 B 热工作集。例子被判为 NOT SPARSE。表头的 GiB 显示会将小尺寸四舍五入为 0.0 GiB，实际输入仍是 64 KiB。",
-          "en": "The supplied log contains ten lookups with key counts of six, three and one. With an assumed 64 KiB table and 16-byte entries, 90% coverage gives two hot keys totaling 32 B. The example is classified NOT SPARSE. The GiB header rounds this small table to 0.0 GiB; the actual input remains 64 KiB."
+          "zh": "自带日志有 10 次查询，3 个 key 的次数为 6、3、1。给定 64 KiB 表大小和 16 字节条目，90% 覆盖对应 2 个 key、32 B 热工作集。例子被判为 NOT SPARSE。",
+          "en": "The supplied log contains ten lookups with key counts of six, three and one. With an assumed 64 KiB table and 16-byte entries, 90% coverage gives two hot keys totaling 32 B. The example is classified NOT SPARSE."
         },
         "image": "/assets/presentation/demo-0-light.svg",
         "imageDark": "/assets/presentation/demo-0-dark.svg",
         "command": "go run ./cmd/engram-tier profile --heat-log examples/presentation.heat.log --table-bytes 64KiB --entry-bytes 16 --coverage 0.9",
-        "output": "EngramTier access-heat report\n============================\n\nTotal lookups:     10\nDistinct keys hit: 3\nTable size:         0.0 GiB\nHot coverage goal:  90% of lookups\n\nPareto curve (hottest keys first):\n  key fraction   lookup coverage  bytes hot\n  top 33.3     %  60.0%            16 B\n  top 33.3     %  60.0%            16 B\n  top 33.3     %  60.0%            16 B\n  top 33.3     %  60.0%            16 B\n  top 66.7     %  90.0%            32 B\n\nWorking set @ 90% coverage: 2 keys (66.7% of distinct) = 32 B RAM\nCold region (offload to SSD):   64.0 KiB\n\nSparseness verdict: NOT SPARSE — top-10% of keys do NOT cover 80% of lookups: cold-tier thesis FALSIFIED (m2 gated closed).\n"
+        "output": "EngramTier access-heat report\n============================\n\nTotal lookups:     10\nDistinct keys hit: 3\nTable size:         64.0 KiB\nHot coverage goal:  90% of lookups\n\nPareto curve (hottest keys first):\n  key fraction   lookup coverage  bytes hot\n  top 33.3%      60.0%            16 B\n  top 33.3%      60.0%            16 B\n  top 33.3%      60.0%            16 B\n  top 33.3%      60.0%            16 B\n  top 66.7%      90.0%            32 B\n\nWorking set @ 90% coverage: 2 keys (66.7% of distinct) = 32 B RAM\nCold region (offload to SSD):   64.0 KiB\n\nSparseness verdict: NOT SPARSE — top-10% of keys do NOT cover 80% of lookups: cold-tier thesis FALSIFIED (m2 gated closed).\n"
       }
     ]
   },
