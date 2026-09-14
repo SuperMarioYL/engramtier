@@ -23,6 +23,8 @@ engram-tier.heat.log
 engram-tier.cold.bin
 profile.report
 *.heat.log
+# ...except the committed demo fixture the README quickstart reads.
+!examples/presentation.heat.log
 
 # macOS / editor
 .DS_Store
