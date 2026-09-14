@@ -371,11 +371,27 @@ func writeSimulatedLog(path string, distinct int, alpha float64) error {
 	}
 	// Zipf over ranks 1..distinct: p(k) ~ 1/k^alpha, normalized. A small key
 	// space (3 two-token combos) keeps the log compact while preserving the
-	// heavy tail a real sparse table would show.
-	z := rand.NewZipf(rand.New(rand.NewPCG(1, 2)), alpha, 1.0, uint64(distinct))
+	// heavy tail a real sparse table would show. math/rand/v2 defines no
+	// Zipf for s <= 1 (NewZipf returns nil and calling Uint64 on it panics),
+	// so the "uniform-ish" alpha values the flag help documents sample
+	// uniformly over the same rank space instead.
+	if distinct < 1 {
+		distinct = 1
+	}
+	r := rand.New(rand.NewPCG(1, 2))
+	var nextRank func() uint64
+	if alpha > 1.0 {
+		// imu is the maximum value Uint64 returns, so distinct-1 keeps the
+		// rank space at exactly [1, distinct] — matching the flag's
+		// "distinct keys in the simulated table" contract.
+		z := rand.NewZipf(r, alpha, 1.0, uint64(distinct)-1)
+		nextRank = func() uint64 { return z.Uint64() + 1 }
+	} else {
+		nextRank = func() uint64 { return r.Uint64N(uint64(distinct)) + 1 }
+	}
 	const lookups = 5000
 	for i := 0; i < lookups; i++ {
-		rank := z.Uint64() + 1
+		rank := nextRank()
 		// Map a rank to a plausible 2-token key: token0 = rank mod vocab,
 		// token1 = rank / vocab. Keeps keys distinct and realistic-sized.
 		const vocab = 128000
