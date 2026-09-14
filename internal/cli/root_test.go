@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -89,5 +90,69 @@ func TestSimulateProfileCommandRuns(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "EngramTier access-heat report") {
 		t.Fatalf("profile output missing report header, got:\n%s", out.String())
+	}
+}
+
+// TestDemoFixturePresent pins the committed fixture the README quickstart
+// (`bash docs/demo.sh`), the Usage commands, and docs/demo-results.json all
+// reference. v0.1.0 shipped without it, so the quickstart exited 1 with
+// "open examples/presentation.heat.log: no such file or directory".
+func TestDemoFixturePresent(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(repoRoot(t), "examples", "presentation.heat.log"))
+	if err != nil {
+		t.Fatalf("examples/presentation.heat.log missing — the README quickstart cannot run: %v", err)
+	}
+	content := strings.TrimRight(string(data), "\n")
+	want := strings.Join([]string{
+		heat.HeatLogHeader,
+		"1:2", "1:2", "1:2", "1:2", "1:2", "1:2",
+		"2:3", "2:3", "2:3",
+		"3:4",
+	}, "\n")
+	if content != want {
+		t.Fatalf("fixture content drifted from the recorded demo input:\n got %q\nwant %q", content, want)
+	}
+}
+
+// TestProfileOverDemoFixture runs the profile command exactly as
+// docs/demo.sh does and asserts the substantive results recorded in
+// docs/demo-results.json (10 lookups, 3 distinct keys, NOT SPARSE) plus the
+// two rendering fixes of this release: the table size prints in KiB (not
+// "0.0 GiB"), and every "top X%" label keeps its percent sign attached.
+func TestProfileOverDemoFixture(t *testing.T) {
+	root := NewRoot()
+	var out strings.Builder
+	root.SetOut(&out)
+	root.SetArgs([]string{
+		"profile",
+		"--heat-log", filepath.Join(repoRoot(t), "examples", "presentation.heat.log"),
+		"--table-bytes", "64KiB",
+		"--entry-bytes", "16",
+		"--coverage", "0.9",
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("profile over demo fixture: %v", err)
+	}
+	got := out.String()
+	for _, want := range []string{
+		"Total lookups:     10",
+		"Distinct keys hit: 3",
+		"Table size:         64.0 KiB",
+		"Working set @ 90% coverage: 2 keys (66.7% of distinct) = 32 B RAM",
+		"NOT SPARSE",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("demo profile output missing %q, got:\n%s", want, got)
+		}
+	}
+	for _, bad := range []string{"0.0 GiB", "top 33.3  %"} {
+		if strings.Contains(got, bad) {
+			t.Fatalf("demo profile output contains stale rendering %q, got:\n%s", bad, got)
+		}
+	}
+	for _, row := range []string{"top 33.3%", "top 66.7%"} {
+		if !strings.Contains(got, row) {
+			t.Fatalf("demo profile output missing attached label %q, got:\n%s", row, got)
+		}
 	}
 }

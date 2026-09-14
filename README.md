@@ -49,7 +49,7 @@ go build -o engram-tier ./cmd/engram-tier
 bash docs/demo.sh
 ```
 
-The supplied log contains ten lookups with key counts of six, three and one. With an assumed 64 KiB table and 16-byte entries, 90% coverage gives two hot keys totaling 32 B. The example is classified NOT SPARSE. The GiB header rounds this small table to 0.0 GiB; the actual input remains 64 KiB.
+The supplied log contains ten lookups with key counts of six, three and one. With an assumed 64 KiB table and 16-byte entries, 90% coverage gives two hot keys totaling 32 B. The example is classified NOT SPARSE.
 
 ## Usage
 

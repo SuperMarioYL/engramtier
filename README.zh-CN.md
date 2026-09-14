@@ -49,7 +49,7 @@ go build -o engram-tier ./cmd/engram-tier
 bash docs/demo.sh
 ```
 
-自带日志有 10 次查询，3 个 key 的次数为 6、3、1。给定 64 KiB 表大小和 16 字节条目，90% 覆盖对应 2 个 key、32 B 热工作集。例子被判为 NOT SPARSE。表头的 GiB 显示会将小尺寸四舍五入为 0.0 GiB，实际输入仍是 64 KiB。
+自带日志有 10 次查询，3 个 key 的次数为 6、3、1。给定 64 KiB 表大小和 16 字节条目，90% 覆盖对应 2 个 key、32 B 热工作集。例子被判为 NOT SPARSE。
 
 ## 用法
 

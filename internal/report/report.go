@@ -90,14 +90,18 @@ func Build(h heat.HeatMap, spec Spec) ProfileReport {
 	fmt.Fprintf(&b, "============================\n\n")
 	fmt.Fprintf(&b, "Total lookups:     %s\n", comm(uint64(h.TotalLookups)))
 	fmt.Fprintf(&b, "Distinct keys hit: %s\n", comm(uint64(len(h.Keys))))
-	fmt.Fprintf(&b, "Table size:         %s\n", heat.FormatGB(spec.TableBytes))
+	fmt.Fprintf(&b, "Table size:         %s\n", heat.FormatBytes(spec.TableBytes))
 	fmt.Fprintf(&b, "Hot coverage goal:  %.0f%% of lookups\n\n", spec.Coverage*100)
 
 	fmt.Fprintf(&b, "Pareto curve (hottest keys first):\n")
 	fmt.Fprintf(&b, "  %-14s %-16s %s\n", "key fraction", "lookup coverage", "bytes hot")
 	for _, p := range curve {
-		fmt.Fprintf(&b, "  top %-9.1f%%  %-16s %s\n",
-			p.KeyFraction*100,
+		// Compose the "top X%" label first and pad it as a unit so the
+		// percent sign stays attached to its number (v0.1.0's "top %-9.1f%%"
+		// pushed the sign past the padding, rendering "top 33.3     %").
+		label := fmt.Sprintf("top %.1f%%", p.KeyFraction*100)
+		fmt.Fprintf(&b, "  %-14s %-16s %s\n",
+			label,
 			fmt.Sprintf("%.1f%%", p.LookupFraction*100),
 			heat.FormatBytes(float64(p.HotKeys)*spec.EntryBytes))
 	}
