@@ -11,7 +11,7 @@
   "meta": {
     "visual_profile": "neon-particle",
     "demo_source": "docs/demo-results.json",
-    "implementation_version": "0.1.0"
+    "implementation_version": "0.2.0"
   },
   "hero": {
     "eyebrow": {
@@ -175,8 +175,8 @@
       "en": "Run the supplied example"
     },
     "note": {
-      "zh": "v0.1.0 对构造日志的实际 profile 输出。表尺寸和条目大小是输入假设，不是模型结构或硬件测量；没有执行 SSD offload。",
-      "en": "Actual v0.1.0 profile output for a constructed log. Table and entry sizes are input assumptions, not model or hardware measurements. No SSD offload was executed."
+      "zh": "v0.2.0 对构造日志的实际 profile 输出。表尺寸和条目大小是输入假设，不是模型结构或硬件测量；没有执行 SSD offload。",
+      "en": "Actual v0.2.0 profile output for a constructed log. Table and entry sizes are input assumptions, not model or hardware measurements. No SSD offload was executed."
     },
     "source": "https://github.com/SuperMarioYL/engramtier/blob/main/docs/demo-results.json",
     "steps": [

@@ -10,14 +10,16 @@ import (
 	"github.com/SuperMarioYL/engramtier/internal/cli"
 )
 
-// Version is the build version. Overridden at link time with
-// -ldflags "-X main.Version=..." by the release workflow; defaults to the
-// VERSION file contents read by the release tooling.
-var Version = "0.1.0"
+// Version overrides cli.DefaultVersion when set at link time by the release
+// workflow (-ldflags "-X main.Version=..."); empty in plain builds, where
+// the CLI reports cli.DefaultVersion.
+var Version = ""
 
 func main() {
 	root := cli.NewRoot()
-	root.Version = Version
+	if Version != "" {
+		root.Version = Version
+	}
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

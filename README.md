@@ -100,7 +100,7 @@ bench uses code defaults of 100 ns hot lookup, 50000 ns cold lookup, one lookup 
 
 ## Recorded demo
 
-Actual v0.1.0 profile output for a constructed log. Table and entry sizes are input assumptions, not model or hardware measurements. No SSD offload was executed.
+Actual v0.2.0 profile output for a constructed log. Table and entry sizes are input assumptions, not model or hardware measurements. No SSD offload was executed.
 
 [Inputs, commands and complete output](docs/demo-results.json)
 

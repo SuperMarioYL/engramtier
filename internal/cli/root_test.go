@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -154,5 +155,76 @@ func TestProfileOverDemoFixture(t *testing.T) {
 		if !strings.Contains(got, row) {
 			t.Fatalf("demo profile output missing attached label %q, got:\n%s", row, got)
 		}
+	}
+}
+
+// TestVersionLockstep asserts every version surface agrees: the VERSION
+// file, cli.DefaultVersion, web/site.json implementation_version (rendered
+// by the live site), docs/demo-results.json, the CHANGELOG [0.2.0] section,
+// and the --version output. At v0.1.0 the string lived only in package main
+// (unreachable from tests) and there was no CHANGELOG, so a single-surface
+// bump would ship silently.
+func TestVersionLockstep(t *testing.T) {
+	root := repoRoot(t)
+
+	versionBytes, err := os.ReadFile(filepath.Join(root, "VERSION"))
+	if err != nil {
+		t.Fatalf("read VERSION: %v", err)
+	}
+	fileVersion := strings.TrimSpace(string(versionBytes))
+
+	siteRaw, err := os.ReadFile(filepath.Join(root, "web", "site.json"))
+	if err != nil {
+		t.Fatalf("read web/site.json: %v", err)
+	}
+	var site struct {
+		Meta struct {
+			ImplementationVersion string `json:"implementation_version"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(siteRaw, &site); err != nil {
+		t.Fatalf("parse web/site.json: %v", err)
+	}
+
+	demoRaw, err := os.ReadFile(filepath.Join(root, "docs", "demo-results.json"))
+	if err != nil {
+		t.Fatalf("read docs/demo-results.json: %v", err)
+	}
+	var demo struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(demoRaw, &demo); err != nil {
+		t.Fatalf("parse docs/demo-results.json: %v", err)
+	}
+
+	changelog, err := os.ReadFile(filepath.Join(root, "CHANGELOG.md"))
+	if err != nil {
+		t.Fatalf("read CHANGELOG.md: %v", err)
+	}
+
+	want := DefaultVersion
+	if fileVersion != want {
+		t.Errorf("VERSION = %q, want %q", fileVersion, want)
+	}
+	if site.Meta.ImplementationVersion != want {
+		t.Errorf("web/site.json implementation_version = %q, want %q", site.Meta.ImplementationVersion, want)
+	}
+	if demo.Version != want {
+		t.Errorf("docs/demo-results.json version = %q, want %q", demo.Version, want)
+	}
+	if !strings.Contains(string(changelog), "## ["+want+"]") {
+		t.Errorf("CHANGELOG.md has no [%s] section", want)
+	}
+
+	// The CLI must report the same version through cobra's built-in flag.
+	rootCmd := NewRoot()
+	var out strings.Builder
+	rootCmd.SetOut(&out)
+	rootCmd.SetArgs([]string{"--version"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("--version: %v", err)
+	}
+	if !strings.Contains(out.String(), "engram-tier version "+want) {
+		t.Fatalf("--version output = %q, want it to contain %q", out.String(), "engram-tier version "+want)
 	}
 }

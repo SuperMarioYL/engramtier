@@ -22,11 +22,19 @@ import (
 	"github.com/SuperMarioYL/engramtier/internal/tier"
 )
 
+// DefaultVersion is the version NewRoot reports via cobra's built-in
+// --version flag. It is the single in-code source of the version string;
+// cmd/engram-tier/main.go overrides it at link time for release builds
+// (-ldflags "-X main.Version=..."), and TestVersionLockstep keeps it in
+// step with VERSION, web/site.json, and docs/demo-results.json.
+const DefaultVersion = "0.2.0"
+
 // NewRoot builds the command tree. It is exported so cmd/engram-tier/main.go
 // can wire it to os.Args without duplicating the command definitions here.
 func NewRoot() *cobra.Command {
 	root := &cobra.Command{
-		Use:   "engram-tier",
+		Use:     "engram-tier",
+		Version: DefaultVersion,
 		Short: "Profile Qwen3.8 n-gram table access heat and offload the cold majority to SSD",
 		Long: `EngramTier instruments the keyed n-gram lookup in a patched llama.cpp to
 measure which entries of Qwen3.8-Flash-Next's ~24GiB n-gram table your workload
