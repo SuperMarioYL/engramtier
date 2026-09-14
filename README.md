@@ -73,7 +73,7 @@ Logs start with `# engram-tier heat-log v1`, followed by one colon-separated key
 | Heat log | Read and aggregate raw lookup lines |
 | Profile | Text summary and Pareto CSV |
 | Bench | Simulated table/CSV using default latency inputs |
-| llama.cpp probe | Patch and application/rebuild commands; requires a compatible source revision |
+| llama.cpp probe | Patch and application/rebuild commands; verified against llama.cpp master 96ffdc41 (2026-09-14), see `internal/probe/testdata/` |
 | Serve | mmap/LRU composition preview; live wiring incomplete |
 | MCP | Command prints a roadmap notice only |
 
@@ -94,7 +94,7 @@ Logs start with `# engram-tier heat-log v1`, followed by one colon-separated key
 | --simulate-distinct | 200000 |
 | --simulate-alpha | 1.2 |
 
-Direct collection requires both --llamacpp-bin and --model, and an instrumented binary. --model alone does not run a session. This example does not validate the patch against current upstream sources.
+Direct collection requires both --llamacpp-bin and --model, and an instrumented binary. --model alone does not run a session. The vendored probe patch targets common/ngram-cache.cpp and is verified against llama.cpp master 96ffdc41ceb055e1c2d3d96667ae6d9f0ccb710b; other revisions may not accept it.
 
 bench uses code defaults of 100 ns hot lookup, 50000 ns cold lookup, one lookup per token and 25000000 ns base decode time. These are not measurements on this machine. The CLI does not expose separate latency flags; changing the model requires the Go API/source. See internal/bench/harness.go. Do not publish simulated t/s as a measured result.
 

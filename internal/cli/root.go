@@ -61,10 +61,13 @@ func newPatchLlamaCppCmd() *cobra.Command {
 		Use:   "patch-llamacpp",
 		Short: "Apply the n-gram access-heat probe to a llama.cpp checkout",
 		Long: `Applies the vendored probe patch (internal/probe/llamacpp-ngram.patch) to a
-llama.cpp source tree, adding a per-key counter at the n-gram lookup site gated
-by ENGRAM_TIER_PROFILE=1. With --rebuild, runs scripts/build-llamacpp.sh to
-produce the instrumented binary. Idempotent: a tree already carrying the probe
-marker is left alone unless --force.`,
+llama.cpp source tree, adding a per-key emitter at the n-gram cache lookup
+sites in common/ngram-cache.cpp, gated by ENGRAM_TIER_PROFILE=1. Verified
+against llama.cpp master 96ffdc41ceb055e1c2d3d96667ae6d9f0ccb710b; newer or
+older trees may not accept the patch (go test ./internal/probe/ checks it
+against a vendored copy of that file). With --rebuild, runs
+scripts/build-llamacpp.sh to produce the instrumented binary. Idempotent: a
+tree already carrying the probe marker is left alone unless --force.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := probe.Apply(llamacpp, force); err != nil {
 				if err == probe.ErrAlreadyApplied {

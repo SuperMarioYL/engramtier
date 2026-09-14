@@ -1,11 +1,22 @@
 # EngramTier llama.cpp n-gram access-heat probe
 #
-# Wraps the speculative-decoding n-gram cache lookup with a per-call emitter
+# Wraps the speculative-decoding n-gram cache lookups with a per-call emitter
 # that, when ENGRAM_TIER_PROFILE=1 is set in the environment, appends every
 # looked-up n-gram key (one per line, colon-separated token ids) to the heat
 # log at $ENGRAM_TIER_HEAT_LOG (default: engram-tier.heat.log). When the env
-# var is unset the probe compiles to a single branch-never-taken, so the same
-# binary serves both profile and serve modes with zero overhead in serve.
+# var is unset the probe compiles to a branch-never-taken, so the same binary
+# serves both profile and serve modes with zero overhead in serve.
+#
+# Keys with an n-gram size outside [2, 3] tokens are not emitted; the
+# EngramTier heat model (internal/heat) covers the 2-3-token keyed table
+# range and rejects other arities on load.
+#
+# Target: llama.cpp master 96ffdc41ceb055e1c2d3d96667ae6d9f0ccb710b
+# (verified 2026-09-14) — the n-gram cache lives in common/ngram-cache.cpp
+# (function common_ngram_cache_draft_partial and its try_draft helpers).
+# A byte-exact copy of the upstream file at that revision is vendored at
+# internal/probe/testdata/ngram-cache.cpp and the apply test checks this
+# patch against it, so upstream drift is caught by `go test`.
 #
 # Apply from the llama.cpp repo root:  git apply --whitespace=fix <this-file>
 # Revert with:                          git apply -R <this-file>
@@ -13,66 +24,89 @@
 # The probe deliberately emits raw lookups (one key per line) and leaves
 # aggregation to the Go heat collector — keeping "which keys are hot" a single
 # source of truth in pure-Go, testable code.
---- a/examples/speculative/llama-ngram-cache.h
-+++ b/examples/speculative/llama-ngram-cache.h
-@@ -28,6 +28,7 @@
- #include <string>
+diff --git a/common/ngram-cache.cpp b/common/ngram-cache.cpp
+index dce54b3..2fdfab6 100644
+--- a/common/ngram-cache.cpp
++++ b/common/ngram-cache.cpp
+@@ -8,6 +8,7 @@
+ #include <fstream>
  #include <thread>
- #include <unordered_map>
-+#include <cstdlib>  // engram-tier: getenv for profile gate
-
- // MACRO values from the draft of the paper "Speculative Decoding for n-gram
- // lookup" (Tobin, 2025).
-@@ -145,6 +146,42 @@ struct ngram_cache {
-         const int n_decode = std::min(n_draft, n_ctx - 1 - kv_pos);
-         if (n_decode <= 0) return;
-
-+        // ===== engram-tier access-heat probe (begin) =====
-+        // Emits the looked-up n-gram key (the sliding-window token sequence
-+        // used to index this entry) to a heat log when ENGRAM_TIER_PROFILE=1.
-+        // Zero-cost when the gate is unset: getenv is called once per session
-+        // and the file write is skipped entirely.
-+        static const bool engram_profile = std::getenv("ENGRAM_TIER_PROFILE") != nullptr;
-+        static FILE * engram_log = nullptr;
-+        if (engram_profile && engram_log == nullptr) {
-+            const char * path = std::getenv("ENGRAM_TIER_HEAT_LOG");
-+            engram_log = std::fopen(path ? path : "engram-tier.heat.log", "a");
-+            if (engram_log) {
-+                std::fputs("# engram-tier heat-log v1\n", engram_log);
-+            }
+ #include <algorithm>
++#include <cstdlib>  // engram-tier: getenv for the profile gate
+ 
+ void common_ngram_cache_update(common_ngram_cache & ngram_cache, int ngram_min, int ngram_max,
+                               std::vector<llama_token> & inp, int nnew, bool print_progress) {
+@@ -62,8 +63,56 @@ constexpr int        draft_min_percent_lax[LLAMA_NGRAM_MAX] = {66, 50, 50, 50};
+ constexpr int draft_min_sample_size_strict[LLAMA_NGRAM_MAX] = { 4,  3,  2,  2};
+ constexpr int     draft_min_percent_strict[LLAMA_NGRAM_MAX] = {75, 66, 66, 66};
+ 
++// ===== engram-tier access-heat probe (begin) =====
++// Emits each n-gram key consulted by the speculative draft loop to a heat
++// log, one colon-separated key per line, when ENGRAM_TIER_PROFILE=1 is set
++// in the environment (log path: $ENGRAM_TIER_HEAT_LOG, default
++// "engram-tier.heat.log"). Zero-cost when the gate is unset: the enabled
++// flag initializes once and the write path is skipped entirely.
++// Keys whose n-gram size falls outside [2, 3] tokens are not emitted — the
++// EngramTier heat model covers the 2-3-token keyed table range. Aggregation
++// lives in the Go heat collector; this probe only emits raw lookups.
++namespace engram {
++static void probe_emit(const llama_token * tokens) {
++    static const bool enabled = std::getenv("ENGRAM_TIER_PROFILE") != nullptr;
++    if (!enabled) {
++        return;
++    }
++    static FILE * log = [] () {
++        const char * path = std::getenv("ENGRAM_TIER_HEAT_LOG");
++        FILE * f = std::fopen(path ? path : "engram-tier.heat.log", "a");
++        if (f) {
++            std::fputs("# engram-tier heat-log v1\n", f);
 +        }
-+        if (engram_profile && engram_log != nullptr) {
-+            // Emit the input tokens that form this n-gram key, colon-
-+            // separated to match the Go NGramKey.String() format.
-+            for (int i = 0; i < ngram_n; ++i) {
-+                if (i) std::fputc(':', engram_log);
-+                std::fprintf(engram_log, "%u", static_cast<unsigned>(input_ids[i]));
-+            }
-+            std::fputc('\n', engram_log);
-+            // Bounded buffering so a long generation does not block decode;
-+            // fflush on session teardown flushes the tail.
-+            if ((++engram_probe_count_ & 0x3ff) == 0) {
-+                std::fflush(engram_log);
-+            }
++        return f;
++    }();
++    if (!log) {
++        return;
++    }
++    int n = 0;
++    while (n < LLAMA_NGRAM_MAX && tokens[n] != LLAMA_TOKEN_NULL) {
++        ++n;
++    }
++    if (n < 2 || n > 3) {
++        return;
++    }
++    for (int i = 0; i < n; ++i) {
++        if (i) {
++            std::fputc(':', log);
 +        }
-+        // ===== engram-tier access-heat probe (end) =====
++        std::fprintf(log, "%d", static_cast<int>(tokens[i]));
++    }
++    std::fputc('\n', log);
++    static std::uint64_t emitted = 0;
++    if ((++emitted & 0x3ff) == 0) {
++        std::fflush(log);
++    }
++}
++} // namespace engram
++// ===== engram-tier access-heat probe (end) =====
+ // Helper function that tries to draft a token from only the static ngram cache:
+ static llama_token try_draft(common_ngram_cache & nc_static, const common_ngram ngram_static) {
++    engram::probe_emit(ngram_static.tokens);
+     common_ngram_cache::iterator part_static_it = nc_static.find(ngram_static);
+     if (part_static_it == nc_static.end()) {
+         return LLAMA_TOKEN_NULL;
+@@ -104,6 +153,8 @@ static llama_token try_draft(
+     for (int i = ngrams_primary.size()-1; i >= 0 && drafted_token == LLAMA_TOKEN_NULL; --i) {
+         const common_ngram ngram_primary = ngrams_primary[i];
+ 
++        engram::probe_emit(ngram_primary.tokens);
 +
-         int n_past = 1;
-         for (int i = 1; i <= n_decode; ++i) {
-             int n_drafted = i;
-@@ -340,3 +377,8 @@ struct ngram_cache {
-     // and for all other threads.
-     std::vector<std::unordered_map< llama_token, std::vector<token_static_sample>>> cache;
- };
-+
-+// engram-tier: probe call counter for bounded flush, lives at file scope so
-+// the static-in-function init above can refer to it across calls.
-+namespace { static std::uint64_t engram_probe_count_ = 0; }
---- a/examples/speculative/CMakeLists.txt
-+++ b/examples/speculative/CMakeLists.txt
-@@ -1,5 +1,6 @@
- # llama.cpp speculative decoding example — n-gram lookup cache
-+# (engram-tier probe adds no build flag; instrumentation is env-gated)
- set(TARGET llama-speculative)
- add_executable(${TARGET} main.cpp
-     llama-ngram-cache.h)
+         common_ngram_cache::iterator part_primary_it = nc_primary.find(ngram_primary);
+         if (part_primary_it == nc_primary.end()) {
+             continue;
+@@ -163,6 +214,7 @@ void common_ngram_cache_draft(
+             ngram_static.tokens[j-ngram_start_static] = get_token(inp, draft, j);
+         }
+         common_ngram_cache::iterator part_static_it = nc_static.find(ngram_static);
++        engram::probe_emit(ngram_static.tokens);
+         common_ngram_cache_part part_static;
+         if (part_static_it != nc_static.end()) {
+             part_static = part_static_it->second;

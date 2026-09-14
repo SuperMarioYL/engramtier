@@ -73,7 +73,7 @@ bash docs/demo.sh
 | Heat log | 读取并聚合原始查询行 |
 | Profile | 文本摘要与 Pareto CSV |
 | Bench | 默认延迟参数下的模拟表/CSV |
-| llama.cpp probe | 提供补丁和应用/重构建命令，需匹配源码版本 |
+| llama.cpp probe | 提供补丁和应用/重构建命令；已对 llama.cpp master 96ffdc41（2026-09-14）验证，见 `internal/probe/testdata/` |
 | Serve | mmap/LRU 组装预览，实时 wiring 未完成 |
 | MCP | 命令只输出路线图提示 |
 
@@ -94,7 +94,7 @@ bash docs/demo.sh
 | --simulate-distinct | 200000 |
 | --simulate-alpha | 1.2 |
 
-直接采集要求同时提供 --llamacpp-bin 与 --model，且二进制确实带有插桩；只给 --model 不会运行。示例不验证补丁与当前上游源码兼容。
+直接采集要求同时提供 --llamacpp-bin 与 --model，且二进制确实带有插桩；只给 --model 不会运行。内置补丁作用于 common/ngram-cache.cpp，已对 llama.cpp master 96ffdc41ceb055e1c2d3d96667ae6d9f0ccb710b 验证；其他版本可能无法应用。
 
 bench 的 100 ns 热查询、50000 ns 冷查询、每 token 1 次查询及 25000000 ns 基础解码时间来自代码默认值，不是本机测得。CLI 当前没有这些延迟参数的独立 flags；改变模拟模型需使用 Go API/源码。详见 internal/bench/harness.go。不要把模拟 t/s 当实测发布。
 

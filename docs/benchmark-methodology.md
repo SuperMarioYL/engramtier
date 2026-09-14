@@ -24,9 +24,10 @@ Two quantities, in this order:
 
 ## 2. The probe and the heat log
 
-EngramTier instruments the keyed n-gram lookup site in llama.cpp's
-speculative-decoding n-gram cache (`examples/speculative/llama-ngram-cache.h`).
-The probe, applied by `engram-tier patch-llamacpp`, wraps each lookup with an
+EngramTier instruments the keyed n-gram lookup sites in llama.cpp's
+speculative-decoding n-gram cache (`common/ngram-cache.cpp`, the
+`common_ngram_cache_draft_partial` loop and its `try_draft` helpers). The
+probe, applied by `engram-tier patch-llamacpp`, wraps each lookup with an
 emitter gated by the `ENGRAM_TIER_PROFILE` environment variable. When the
 gate is set, every looked-up n-gram key (the 2–3-token index into the table)
 is appended to a heat log at `$ENGRAM_TIER_HEAT_LOG` (default
