@@ -1,5 +1,5 @@
 {
-  "version": "0.2.0",
+  "version": "0.3.0",
   "fixture": "Constructed ten-lookup heat log; 64 KiB table geometry and 16-byte entries are explicit example assumptions, not model or hardware measurements.",
   "inputs": [
     {

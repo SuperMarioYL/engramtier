@@ -6,6 +6,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-10-21
+
+### Fixed
+
+- **A zero-lookup heat log no longer produces a confident nonsense report.**
+  A header-only log (what a stale or truncated probe run leaves behind) was
+  accepted by `profile`, which exited 0 claiming "Cold region (offload to
+  SSD): 24.00 GiB" — the core offload estimate reported the whole table as
+  cold when nothing was collected. `bench` swept and printed a full
+  throughput-loss table for the same empty input. Both commands now fail
+  loudly with "heat log … contains no lookups — the probe may not have run".
+- **`--prompt` is forwarded as llama-cli's `-f` (prompt file), not `-p`
+  (literal prompt).** llama.cpp defines `-p` as the prompt string and `-f` as
+  "a file containing the prompt"; the v0.2.0 real-session path sent the file
+  PATH to `-p`, silently profiling a workload whose prompt was the path text.
+  The llama-cli argument construction is extracted into `llamaCliArgs` and
+  unit-tested against the flag contract.
+- **CLI errors are printed once, not twice.** Cobra printed "Error: X" and
+  then `main.go` printed the returned error again, so every user-visible
+  failure appeared twice on stderr. The root command now sets
+  `SilenceErrors`, leaving `main.go` as the single error printer.
+
 ## [0.2.0] — 2026-09-15
 
 ### Fixed
@@ -61,6 +83,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - llama.cpp instrumentation patch command (`engram-tier patch-llamacpp`),
   benchmark methodology doc, and the product site.
 
-[Unreleased]: https://github.com/SuperMarioYL/engramtier/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/SuperMarioYL/engramtier/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/SuperMarioYL/engramtier/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/SuperMarioYL/engramtier/releases/tag/v0.2.0
 [0.1.0]: https://github.com/SuperMarioYL/engramtier/releases/tag/v0.1.0

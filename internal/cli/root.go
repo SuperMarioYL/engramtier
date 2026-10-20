@@ -27,7 +27,7 @@ import (
 // cmd/engram-tier/main.go overrides it at link time for release builds
 // (-ldflags "-X main.Version=..."), and TestVersionLockstep keeps it in
 // step with VERSION, web/site.json, and docs/demo-results.json.
-const DefaultVersion = "0.2.0"
+const DefaultVersion = "0.3.0"
 
 // NewRoot builds the command tree. It is exported so cmd/engram-tier/main.go
 // can wire it to os.Args without duplicating the command definitions here.
@@ -35,7 +35,7 @@ func NewRoot() *cobra.Command {
 	root := &cobra.Command{
 		Use:     "engram-tier",
 		Version: DefaultVersion,
-		Short: "Profile Qwen3.8 n-gram table access heat and offload the cold majority to SSD",
+		Short:   "Profile Qwen3.8 n-gram table access heat and offload the cold majority to SSD",
 		Long: `EngramTier instruments the keyed n-gram lookup in a patched llama.cpp to
 measure which entries of Qwen3.8-Flash-Next's ~24GiB n-gram table your workload
 actually hits, then reports the hot-set Pareto curve and the cold-region size
@@ -44,7 +44,8 @@ that can be offloaded to SSD/NVMe.
   engram-tier patch-llamacpp --llamacpp ~/src/llama.cpp
   engram-tier profile --model qwen3.8-flash-next-q4.gguf --prompt prompt.txt --tokens 512
   engram-tier serve   --model qwen3.8-flash-next-q4.gguf --hotset profile.report`,
-		SilenceUsage: true,
+		SilenceUsage:  true,
+		SilenceErrors: true, // main.go prints the returned error; cobra must not print a second copy
 	}
 	root.AddCommand(
 		newPatchLlamaCppCmd(),
@@ -60,10 +61,10 @@ that can be offloaded to SSD/NVMe.
 // vendored probe to a llama.cpp checkout and (optionally) rebuild it.
 func newPatchLlamaCppCmd() *cobra.Command {
 	var (
-		llamacpp string
-		rebuild  bool
+		llamacpp    string
+		rebuild     bool
 		buildScript string
-		force     bool
+		force       bool
 	)
 	c := &cobra.Command{
 		Use:   "patch-llamacpp",
@@ -116,19 +117,19 @@ tree already carrying the probe marker is left alone unless --force.`,
 // demonstrable without a 24GiB model.
 func newProfileCmd() *cobra.Command {
 	var (
-		model        string
-		promptFile   string
-		tokens       int
-		heatLog      string
-		llamacppBin  string
-		simulate     bool
-		simDistinct  int
-		simAlpha     float64
-		out          string
-		csvOut       string
-		tableBytes   string
-		entryBytes   int
-		coverage     float64
+		model       string
+		promptFile  string
+		tokens      int
+		heatLog     string
+		llamacppBin string
+		simulate    bool
+		simDistinct int
+		simAlpha    float64
+		out         string
+		csvOut      string
+		tableBytes  string
+		entryBytes  int
+		coverage    float64
 	)
 	c := &cobra.Command{
 		Use:   "profile",
@@ -156,6 +157,9 @@ func newProfileCmd() *cobra.Command {
 			col := heat.NewCollector()
 			if err := col.LoadLog(logPath); err != nil {
 				return err
+			}
+			if col.Total() == 0 {
+				return fmt.Errorf("profile: heat log %s contains no lookups — the probe may not have run (stale or truncated file)", logPath)
 			}
 			hm := col.HeatMap()
 
@@ -264,13 +268,13 @@ func newServeCmd() *cobra.Command {
 // `profile`; like profile it accepts --simulate to run without a model.
 func newBenchCmd() *cobra.Command {
 	var (
-		heatLog    string
-		simulate   bool
+		heatLog     string
+		simulate    bool
 		simDistinct int
-		simAlpha   float64
-		tableBytes string
-		entryBytes int
-		csvOut     string
+		simAlpha    float64
+		tableBytes  string
+		entryBytes  int
+		csvOut      string
 	)
 	c := &cobra.Command{
 		Use:   "bench",
@@ -288,6 +292,9 @@ func newBenchCmd() *cobra.Command {
 			col := heat.NewCollector()
 			if err := col.LoadLog(logPath); err != nil {
 				return err
+			}
+			if col.Total() == 0 {
+				return fmt.Errorf("bench: heat log %s contains no lookups — the probe may not have run (stale or truncated file)", logPath)
 			}
 			tb, err := parseBytes(tableBytes)
 			if err != nil {
@@ -343,6 +350,19 @@ func newMCPCmd() *cobra.Command {
 // set so it streams the heat log, then returns. The GGUF model and prompt are
 // forwarded verbatim; the caller owns ensuring the binary was built from a
 // patched tree.
+// llamaCliArgs builds the llama-cli invocation for a real instrumented
+// session: model, token budget, and — when the user supplied one — the prompt
+// file. llama-cli reads a prompt FILE through -f; its -p takes the literal
+// prompt text (llama.cpp tools/cli/README.md), so forwarding a file path to
+// -p would profile a workload whose prompt is the path string.
+func llamaCliArgs(model, promptFile string, tokens int) []string {
+	args := []string{"-m", model, "-n", strconv.Itoa(tokens)}
+	if promptFile != "" {
+		args = append(args, "-f", promptFile)
+	}
+	return args
+}
+
 func runInstrumented(bin, model, promptFile string, tokens int, logPath string, out interface{}) error {
 	if _, err := os.Stat(bin); err != nil {
 		return fmt.Errorf("llama.cpp binary not found: %w", err)
@@ -350,10 +370,7 @@ func runInstrumented(bin, model, promptFile string, tokens int, logPath string, 
 	if _, err := os.Stat(model); err != nil {
 		return fmt.Errorf("model not found: %w", err)
 	}
-	args := []string{"-m", model, "-n", strconv.Itoa(tokens)}
-	if promptFile != "" {
-		args = append(args, "-p", promptFile)
-	}
+	args := llamaCliArgs(model, promptFile, tokens)
 	cmd := exec.Command(bin, args...)
 	cmd.Env = append(os.Environ(), "ENGRAM_TIER_PROFILE=1", "ENGRAM_TIER_HEAT_LOG="+logPath)
 	cmd.Stdout = nil

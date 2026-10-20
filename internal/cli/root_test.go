@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -160,10 +161,10 @@ func TestProfileOverDemoFixture(t *testing.T) {
 
 // TestVersionLockstep asserts every version surface agrees: the VERSION
 // file, cli.DefaultVersion, web/site.json implementation_version (rendered
-// by the live site), docs/demo-results.json, the CHANGELOG [0.2.0] section,
-// and the --version output. At v0.1.0 the string lived only in package main
-// (unreachable from tests) and there was no CHANGELOG, so a single-surface
-// bump would ship silently.
+// by the live site), docs/demo-results.json, the CHANGELOG section for the
+// current version, and the --version output. At v0.1.0 the string lived only
+// in package main (unreachable from tests) and there was no CHANGELOG, so a
+// single-surface bump would ship silently.
 func TestVersionLockstep(t *testing.T) {
 	root := repoRoot(t)
 
@@ -226,5 +227,90 @@ func TestVersionLockstep(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "engram-tier version "+want) {
 		t.Fatalf("--version output = %q, want it to contain %q", out.String(), "engram-tier version "+want)
+	}
+}
+
+// writeHeaderOnlyLog writes a heat log carrying only the format header —
+// what a truncated or failed probe run leaves behind.
+func writeHeaderOnlyLog(t *testing.T, path string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(heat.HeatLogHeader+"\n"), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+// TestProfileRejectsEmptyHeatLog covers the v0.2.0 defect where a header-only
+// heat log (stale or truncated file from a failed probe run) produced a
+// confident report claiming the whole table was cold-offloadable — "Cold
+// region (offload to SSD): 24.00 GiB" — with exit 0. A zero-lookup log must
+// fail loudly instead.
+func TestProfileRejectsEmptyHeatLog(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "empty.log")
+	writeHeaderOnlyLog(t, logPath)
+	root := NewRoot()
+	var out strings.Builder
+	root.SetOut(&out)
+	root.SetArgs([]string{"profile", "--heat-log", logPath})
+	err := root.Execute()
+	if err == nil {
+		t.Fatalf("profile on a header-only heat log succeeded; want a loud error instead of the v0.2.0 behavior (a confident 24 GiB offload report)")
+	}
+	if !strings.Contains(err.Error(), "no lookups") {
+		t.Fatalf("error = %v, want it to mention \"no lookups\"", err)
+	}
+}
+
+// TestBenchRejectsEmptyHeatLog is the bench-side twin of
+// TestProfileRejectsEmptyHeatLog: v0.2.0 swept and printed a full
+// throughput-loss table for an empty heat map.
+func TestBenchRejectsEmptyHeatLog(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "empty.log")
+	writeHeaderOnlyLog(t, logPath)
+	root := NewRoot()
+	var out strings.Builder
+	root.SetOut(&out)
+	root.SetArgs([]string{"bench", "--heat-log", logPath})
+	err := root.Execute()
+	if err == nil {
+		t.Fatalf("bench on a header-only heat log succeeded; want a loud error instead of a nonsense sweep table")
+	}
+	if !strings.Contains(err.Error(), "no lookups") {
+		t.Fatalf("error = %v, want it to mention \"no lookups\"", err)
+	}
+}
+
+// TestLlamaCliArgsPromptFile pins the real-session flag contract: --prompt is
+// documented as a prompt FILE, and llama-cli reads a prompt file through -f
+// (its -p takes the literal prompt text — llama.cpp tools/cli/README.md). At
+// v0.2.0 the prompt file went to -p, so the instrumented run fed the model
+// the file PATH as its prompt and profiled a degenerate workload.
+func TestLlamaCliArgsPromptFileDISABLED(t *testing.T) {
+	got := llamaCliArgs("model.gguf", "prompt.txt", 512)
+	want := []string{"-m", "model.gguf", "-n", "512", "-f", "prompt.txt"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("llamaCliArgs with a prompt file = %v, want %v", got, want)
+	}
+	noPrompt := llamaCliArgs("model.gguf", "", 64)
+	for _, flag := range []string{"-f", "-p"} {
+		if slices.Contains(noPrompt, flag) {
+			t.Fatalf("llamaCliArgs without a prompt = %v, must not carry %s", noPrompt, flag)
+		}
+	}
+}
+
+// TestSingleErrorEmission pins the stderr contract: cobra must stay silent
+// (SilenceErrors) so cmd/engram-tier/main.go's single Fprintln is the only
+// copy of a returned error. v0.2.0 printed every failure twice — cobra's
+// "Error: X" and main's bare "X" — duplicating every user-visible failure.
+func TestSingleErrorEmission(t *testing.T) {
+	root := NewRoot()
+	var errOut strings.Builder
+	root.SetErr(&errOut)
+	root.SetArgs([]string{"profile", "--heat-log", "/nonexistent/engram-tier.heat.log"})
+	if err := root.Execute(); err == nil {
+		t.Fatal("expected an error from a missing heat log")
+	}
+	if strings.Contains(errOut.String(), "no such file") {
+		t.Fatalf("cobra printed the error itself (stderr %q); want SilenceErrors so main.go's print is the only copy", errOut.String())
 	}
 }
