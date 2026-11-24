@@ -7,6 +7,7 @@ package cli
 
 import (
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"os"
 	"os/exec"
@@ -27,7 +28,13 @@ import (
 // cmd/engram-tier/main.go overrides it at link time for release builds
 // (-ldflags "-X main.Version=..."), and TestVersionLockstep keeps it in
 // step with VERSION, web/site.json, and docs/demo-results.json.
-const DefaultVersion = "0.3.0"
+const DefaultVersion = "0.4.0"
+
+// defaultHeatLogPath is where a run without --heat-log writes (and reads) its
+// heat log: the probe's default output file, profile/bench's --simulate target,
+// and the file the mutual-exclusion error names. One constant so those cannot
+// drift apart.
+const defaultHeatLogPath = "engram-tier.heat.log"
 
 // NewRoot builds the command tree. It is exported so cmd/engram-tier/main.go
 // can wire it to os.Args without duplicating the command definitions here.
@@ -135,9 +142,23 @@ func newProfileCmd() *cobra.Command {
 		Use:   "profile",
 		Short: "Run one instrumented session and print the n-gram access-heat report",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if simulate && heatLog != "" {
+				return fmt.Errorf("profile: --simulate and --heat-log are mutually exclusive — --simulate writes a synthetic log (default %s), --heat-log reads a recorded one", defaultHeatLogPath)
+			}
+			tb, err := parseBytes(tableBytes)
+			if err != nil {
+				return fmt.Errorf("profile: %w", err)
+			}
+			if err := validateTableGeometry(tb, float64(entryBytes)); err != nil {
+				return fmt.Errorf("profile: %w", err)
+			}
+			if err := validateCoverage(coverage); err != nil {
+				return fmt.Errorf("profile: %w", err)
+			}
+
 			logPath := heatLog
 			if logPath == "" {
-				logPath = "engram-tier.heat.log"
+				logPath = defaultHeatLogPath
 			}
 
 			if simulate {
@@ -163,10 +184,6 @@ func newProfileCmd() *cobra.Command {
 			}
 			hm := col.HeatMap()
 
-			tb, err := parseBytes(tableBytes)
-			if err != nil {
-				return err
-			}
 			spec := report.Spec{
 				TableBytes:     tb,
 				EntryBytes:     float64(entryBytes),
@@ -232,13 +249,13 @@ func newServeCmd() *cobra.Command {
 			}
 			sum, err := readSummary(hotset)
 			if err != nil {
-				return err
+				return fmt.Errorf("serve: %w", err)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "EngramTier serve (m2 preview)\n")
 			fmt.Fprintf(cmd.OutOrStdout(), "===========================\n")
-			fmt.Fprintf(cmd.OutOrStdout(), "hotset:   %d keys (%.1f%% of %d distinct) = %.1f GiB RAM\n",
-				sum.HotKeys, sum.HotFraction*100, sum.DistinctKeys, sum.HotBytes/(1<<30))
-			fmt.Fprintf(cmd.OutOrStdout(), "cold tier:%.1f GiB on SSD (%s)\n", sum.ColdBytes/(1<<30), coldFile)
+			fmt.Fprintf(cmd.OutOrStdout(), "hotset:   %d keys (%.1f%% of %d distinct) = %s RAM\n",
+				sum.HotKeys, sum.HotFraction*100, sum.DistinctKeys, heat.FormatBytes(sum.HotBytes))
+			fmt.Fprintf(cmd.OutOrStdout(), "cold tier: %s on SSD (%s)\n", heat.FormatBytes(sum.ColdBytes), coldFile)
 			fmt.Fprintf(cmd.OutOrStdout(), "sparse:   %v — %s\n", sum.Sparse, sum.SparsityNote)
 
 			// Compose the cold-tier components to prove they assemble; the live
@@ -280,9 +297,20 @@ func newBenchCmd() *cobra.Command {
 		Use:   "bench",
 		Short: "Sweep hot-set coverage and print the throughput-loss table (m3)",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if simulate && heatLog != "" {
+				return fmt.Errorf("bench: --simulate and --heat-log are mutually exclusive — --simulate writes a synthetic log (default %s), --heat-log reads a recorded one", defaultHeatLogPath)
+			}
+			tb, err := parseBytes(tableBytes)
+			if err != nil {
+				return fmt.Errorf("bench: %w", err)
+			}
+			if err := validateTableGeometry(tb, float64(entryBytes)); err != nil {
+				return fmt.Errorf("bench: %w", err)
+			}
+
 			logPath := heatLog
 			if logPath == "" {
-				logPath = "engram-tier.heat.log"
+				logPath = defaultHeatLogPath
 			}
 			if simulate {
 				if err := writeSimulatedLog(logPath, simDistinct, simAlpha); err != nil {
@@ -295,10 +323,6 @@ func newBenchCmd() *cobra.Command {
 			}
 			if col.Total() == 0 {
 				return fmt.Errorf("bench: heat log %s contains no lookups — the probe may not have run (stale or truncated file)", logPath)
-			}
-			tb, err := parseBytes(tableBytes)
-			if err != nil {
-				return err
 			}
 			rows := bench.Sweep(bench.Spec{
 				Heat:       col.HeatMap(),
@@ -461,6 +485,35 @@ func parseBytes(s string) (float64, error) {
 	return n * mult, nil
 }
 
+// validateTableGeometry rejects a table size or entry stride the report cannot
+// turn into a meaningful number. heat.WorkingSet answers a non-positive stride
+// with (0,0,0) and ColdRegionBytes with 0, so without this check
+// `profile --entry-bytes 0` printed a 0 B cold region for a 64 KiB table (the
+// tool's headline answer inverted) while exiting 0, and a negative stride also
+// produced negative "bytes hot" cells. NaN reaches the same place because
+// strconv.ParseFloat accepts it.
+func validateTableGeometry(tableBytes, entryBytes float64) error {
+	if !(tableBytes > 0) || math.IsInf(tableBytes, 1) {
+		return fmt.Errorf("--table-bytes must be a positive, finite size, got %g", tableBytes)
+	}
+	if !(entryBytes > 0) || math.IsInf(entryBytes, 1) {
+		return fmt.Errorf("--entry-bytes must be a positive entry stride, got %g", entryBytes)
+	}
+	return nil
+}
+
+// validateCoverage rejects a lookup-coverage target outside (0,1]. report.Build
+// silently replaces Coverage <= 0 with its 0.95 default (so an explicit
+// `--coverage 0` reported 95%) and only clamps >1 inside the analysis, after
+// the report has already printed the caller's value as the goal ("150% of
+// lookups").
+func validateCoverage(coverage float64) error {
+	if !(coverage > 0) || coverage > 1 {
+		return fmt.Errorf("--coverage must be in (0, 1], got %g", coverage)
+	}
+	return nil
+}
+
 // summaryPair is the subset of the machine-readable report block serve reads.
 // Kept here rather than in the report package because the wire format is a CLI
 // concern (the report writes it; only the CLI parses it back).
@@ -479,6 +532,13 @@ type summaryPair struct {
 // readSummary parses the machine-readable block that report.Write appends to a
 // profile report. It tolerates the human text above it by scanning for the
 // `key=value` lines under the known header.
+//
+// A file that yields no distinct keys is rejected: every strconv error is
+// ignored here, so without this check "this is not a report" and "this report
+// has zero values" are the same struct, and serve printed a zero-value preview
+// before failing three layers down in tier.NewMMapTier with "entry count must
+// be positive". profile refuses zero-lookup logs, so a genuine report always
+// carries at least one key.
 func readSummary(path string) (summaryPair, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -515,6 +575,9 @@ func readSummary(path string) (summaryPair, error) {
 		case "sparsity_note":
 			s.SparsityNote = v
 		}
+	}
+	if s.DistinctKeys <= 0 {
+		return summaryPair{}, fmt.Errorf("%s is not an engram-tier profile report (no machine-readable summary with distinct_keys > 0); regenerate it with `engram-tier profile --out <path>`", path)
 	}
 	return s, nil
 }

@@ -6,6 +6,42 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-11-25
+
+### Fixed
+
+- **The sparseness verdict tests the same "top X%" key set the report prints.**
+  `heat.Sparse` selected `int(threshold*n)` keys (floor) while the printed
+  Pareto curve uses the smallest prefix whose key fraction reaches the
+  threshold (ceil). On a 19-key log the two disagreed by one key, so `profile`
+  printed `top 10.5%  82.5%` and then `NOT SPARSE — top-10% of keys do NOT cover
+  80% ... FALSIFIED` in the same report, exit 0. The verdict now uses the
+  curve's definition, so the gate and the evidence above it agree.
+- **Degenerate report inputs are rejected instead of reporting a 0 B cold
+  region.** `--entry-bytes 0` / `-16` and `--table-bytes 0` turned the headline
+  "Cold region (offload to SSD)" line into 0 B (with negative "bytes hot" cells)
+  for a 64 KiB table and exited 0 — the tool's answer inverted. `--coverage 1.5`
+  printed an impossible "150% of lookups" goal and `--coverage 0` was silently
+  replaced by the 95% default. `profile` and `bench` now reject the geometry and
+  `profile` rejects coverage outside (0, 1], naming the flag.
+- **`--simulate` no longer overwrites the log named by `--heat-log`.**
+  `profile --simulate --heat-log recorded.log` truncated the recorded log into
+  5000 synthetic lookups and then analysed the synthetic data (`bench` did it
+  without a word). The two flags are now mutually exclusive: `--simulate` writes
+  the default `engram-tier.heat.log` and `--heat-log` reads a recording.
+- **`serve` rejects a hotset that is not a profile report before printing a
+  preview.** An arbitrary file produced `hotset: 0 keys ... sparse: false —` and
+  only then failed with `cold tier init failed: tier: entry count must be
+  positive, got 0`. The loader now asserts the precondition it actually needs
+  (`distinct_keys > 0`) and says the file is not an engram-tier profile report
+  and how to regenerate it.
+
+### Changed
+
+- **`serve` renders its sizes with the report's byte formatter.** The demo's
+  64 KiB cold region read `0.0 GiB` one command after `profile` printed
+  `64.0 KiB`; both now use the same formatter.
+
 ## [0.3.0] — 2026-10-21
 
 ### Fixed
@@ -83,7 +119,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - llama.cpp instrumentation patch command (`engram-tier patch-llamacpp`),
   benchmark methodology doc, and the product site.
 
-[Unreleased]: https://github.com/SuperMarioYL/engramtier/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/SuperMarioYL/engramtier/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/SuperMarioYL/engramtier/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/SuperMarioYL/engramtier/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/SuperMarioYL/engramtier/releases/tag/v0.2.0
 [0.1.0]: https://github.com/SuperMarioYL/engramtier/releases/tag/v0.1.0

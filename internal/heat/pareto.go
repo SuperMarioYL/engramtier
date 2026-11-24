@@ -2,6 +2,7 @@ package heat
 
 import (
 	"fmt"
+	"math"
 	"sort"
 )
 
@@ -179,12 +180,17 @@ func (h HeatMap) ColdRegionBytes(coverage, tableBytes, entryBytes float64) float
 // Sparse reports whether the top threshold-fraction of keys cover at least
 // minCoverage of lookups — the falsification test for the sparseness claim.
 // m1 prints this; if false, the cold-tier thesis is falsified and m2 is gated.
+//
+// "top threshold-fraction" is the same set SampleCurve reports: the smallest
+// prefix whose KeyFraction reaches the threshold, i.e. ceil(threshold*n) keys.
+// With floor, a 19-key table would test 1 key (5.3%) while the report prints
+// its 2-key (10.5%) row, and the verdict could contradict the curve above it.
 func (h HeatMap) Sparse(threshold, minCoverage float64) bool {
 	s := h.Sort()
 	if len(s.Counts) == 0 || s.TotalLookups == 0 {
 		return false
 	}
-	k := int(threshold * float64(len(s.Counts)))
+	k := int(math.Ceil(threshold * float64(len(s.Counts))))
 	if k < 1 {
 		k = 1
 	}

@@ -199,3 +199,48 @@ func TestFormatGB(t *testing.T) {
 		t.Fatalf("FormatGB(0) = %q", FormatGB(0))
 	}
 }
+
+// TestSparseThresholdMatchesSampledCurve pins the definition of "top X% of
+// keys" to one rule. SampleCurve reports the smallest prefix whose KeyFraction
+// reaches the threshold (ceil); Sparse must test that same prefix, otherwise
+// the report can print "top 10.5% -> 82.5%" and declare NOT SPARSE on the next
+// line. 19 keys x 10% = 1.9 -> the 2-key prefix (10.5%), which covers
+// 80/97 = 82.5% here.
+func TestSparseThresholdMatchesSampledCurve(t *testing.T) {
+	counts := make([]uint64, 19)
+	counts[0], counts[1] = 40, 40
+	for i := 2; i < len(counts); i++ {
+		counts[i] = 1
+	}
+	h := HeatMap{Keys: makeKeys(len(counts)), Counts: counts, TotalLookups: 97}
+
+	curve := h.Sort().SampleCurve([]float64{0.10})
+	if len(curve) != 1 {
+		t.Fatalf("SampleCurve(0.10) returned %d points, want 1", len(curve))
+	}
+	top := curve[0]
+	if top.HotKeys != 2 {
+		t.Fatalf("SampleCurve(0.10).HotKeys = %d, want 2 (10.5%% of 19 keys)", top.HotKeys)
+	}
+	if top.LookupFraction < 0.80 {
+		t.Fatalf("SampleCurve(0.10) covers %.3f, want >= 0.80 so the gate must hold", top.LookupFraction)
+	}
+	if !h.Sparse(0.10, 0.80) {
+		t.Fatalf("Sparse(0.10, 0.80) = false while the sampled top-%d row covers %.1f%% — verdict disagrees with the printed curve",
+			top.HotKeys, top.LookupFraction*100)
+	}
+}
+
+// TestSparseStillFalsifiesDenseTables keeps the gate honest in the other
+// direction: when even the ceil-sized prefix misses the bar, the verdict must
+// stay false.
+func TestSparseStillFalsifiesDenseTables(t *testing.T) {
+	counts := make([]uint64, 19)
+	for i := range counts {
+		counts[i] = 1
+	}
+	h := HeatMap{Keys: makeKeys(len(counts)), Counts: counts, TotalLookups: 19}
+	if h.Sparse(0.10, 0.80) {
+		t.Fatal("Sparse true for a uniform 19-key table, want false")
+	}
+}

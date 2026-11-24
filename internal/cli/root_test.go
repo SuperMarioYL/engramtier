@@ -314,3 +314,209 @@ func TestSingleErrorEmission(t *testing.T) {
 		t.Fatalf("cobra printed the error itself (stderr %q); want SilenceErrors so main.go's print is the only copy", errOut.String())
 	}
 }
+
+// demoFixturePath returns the absolute path of the committed demo heat log so a
+// test that changes the working directory can still reference it.
+func demoFixturePath(t *testing.T) string {
+	t.Helper()
+	p, err := filepath.Abs(filepath.Join(repoRoot(t), "examples", "presentation.heat.log"))
+	if err != nil {
+		t.Fatalf("resolve demo fixture: %v", err)
+	}
+	return p
+}
+
+// TestProfileRejectsDegenerateReportInputs covers the report inputs that used
+// to reach report.Build unchecked: a zero or negative stride made
+// heat.WorkingSet answer 0 bytes, so `profile --entry-bytes 0` printed a 0 B
+// cold region for a 64 KiB table (the tool's whole answer inverted) and
+// --entry-bytes -16 printed negative hot bytes; both exited 0. Coverage outside
+// (0,1] was printed as an impossible goal ("150%") or silently replaced by the
+// 0.95 default.
+func TestProfileRejectsDegenerateReportInputs(t *testing.T) {
+	fixture := demoFixturePath(t)
+	cases := []struct {
+		name string
+		args []string
+		flag string
+	}{
+		{"zero entry bytes", []string{"--entry-bytes", "0"}, "--entry-bytes"},
+		{"negative entry bytes", []string{"--entry-bytes", "-16"}, "--entry-bytes"},
+		{"zero table bytes", []string{"--table-bytes", "0"}, "--table-bytes"},
+		{"negative table bytes", []string{"--table-bytes", "-1KiB"}, "--table-bytes"},
+		{"zero coverage", []string{"--coverage", "0"}, "--coverage"},
+		{"coverage above one", []string{"--coverage", "1.5"}, "--coverage"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := NewRoot()
+			var out strings.Builder
+			root.SetOut(&out)
+			root.SetArgs(append([]string{"profile", "--heat-log", fixture}, tc.args...))
+			err := root.Execute()
+			if err == nil {
+				t.Fatalf("profile %v succeeded; want an error naming %s instead of a plausible report", tc.args, tc.flag)
+			}
+			if !strings.Contains(err.Error(), tc.flag) {
+				t.Fatalf("error = %v, want it to name %s", err, tc.flag)
+			}
+			if strings.Contains(out.String(), "EngramTier access-heat report") {
+				t.Fatalf("a rejected input still printed a report:\n%s", out.String())
+			}
+		})
+	}
+}
+
+// TestBenchRejectsDegenerateTableGeometry is the bench twin: it shares
+// --table-bytes/--entry-bytes and printed the same nonsense sweep rows.
+func TestBenchRejectsDegenerateTableGeometry(t *testing.T) {
+	fixture := demoFixturePath(t)
+	for _, args := range [][]string{
+		{"--entry-bytes", "-16"},
+		{"--entry-bytes", "0"},
+		{"--table-bytes", "0"},
+	} {
+		root := NewRoot()
+		var out strings.Builder
+		root.SetOut(&out)
+		root.SetArgs(append([]string{"bench", "--heat-log", fixture}, args...))
+		if err := root.Execute(); err == nil {
+			t.Fatalf("bench %v succeeded; want an error naming the flag", args)
+		} else if !strings.Contains(err.Error(), args[0]) {
+			t.Fatalf("error = %v, want it to name %s", err, args[0])
+		}
+		if strings.Contains(out.String(), "coverage") {
+			t.Fatalf("bench %v printed a sweep table for a rejected geometry:\n%s", args, out.String())
+		}
+	}
+}
+
+// TestSimulateRefusesToOverwriteHeatLog covers the data-loss path: --heat-log
+// names a recorded log to read while --simulate writes a synthetic one, and
+// writeSimulatedLog was handed the --heat-log path, so
+// `profile --simulate --heat-log recorded.log` replaced an 11-line recording
+// with 5000 synthetic lookups and then analysed the synthetic data (bench did
+// it silently).
+func TestSimulateRefusesToOverwriteHeatLog(t *testing.T) {
+	t.Chdir(t.TempDir())
+	const recorded = heat.HeatLogHeader + "\n1:2\n1:2\n2:3\n"
+
+	for _, name := range []string{"profile", "bench"} {
+		t.Run(name, func(t *testing.T) {
+			const path = "recorded.log"
+			if err := os.WriteFile(path, []byte(recorded), 0o644); err != nil {
+				t.Fatalf("write recorded log: %v", err)
+			}
+			root := NewRoot()
+			var out strings.Builder
+			root.SetOut(&out)
+			root.SetArgs([]string{name, "--simulate", "--heat-log", path})
+			err := root.Execute()
+			if err == nil {
+				t.Fatalf("%s --simulate --heat-log succeeded; want a refusal instead of overwriting the recording", name)
+			}
+			if !strings.Contains(err.Error(), "--simulate") {
+				t.Fatalf("error = %v, want it to name --simulate", err)
+			}
+			got, readErr := os.ReadFile(path)
+			if readErr != nil {
+				t.Fatalf("read recorded log back: %v", readErr)
+			}
+			if string(got) != recorded {
+				t.Fatalf("%s overwrote the recorded log: %d bytes now, want the original %d", name, len(got), len(recorded))
+			}
+		})
+	}
+
+	// The synthetic path on its own must keep working and keep writing the
+	// documented default file.
+	root := NewRoot()
+	var out strings.Builder
+	root.SetOut(&out)
+	root.SetArgs([]string{"profile", "--simulate", "--simulate-distinct", "10"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("profile --simulate alone: %v", err)
+	}
+	if _, err := os.Stat("engram-tier.heat.log"); err != nil {
+		t.Fatalf("profile --simulate no longer writes the default heat log: %v", err)
+	}
+}
+
+// TestServeRejectsNonReportHotset covers the loader's missing precondition:
+// readSummary returned no error when no known key=value line matched, so serve
+// printed a zero-value preview ("hotset: 0 keys ... sparse: false —") and only
+// then failed with "cold tier init failed: tier: entry count must be positive,
+// got 0" — pointing at the tier instead of the file.
+func TestServeRejectsNonReportHotset(t *testing.T) {
+	dir := t.TempDir()
+	cases := map[string]string{
+		"arbitrary text":        "hello world\n",
+		"empty file":            "",
+		"heat log not a report": heat.HeatLogHeader + "\n1:2\n",
+	}
+	for name, content := range cases {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(dir, strings.ReplaceAll(name, " ", "-")+".txt")
+			if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+				t.Fatalf("write %s: %v", path, err)
+			}
+			t.Chdir(dir) // serve maps its cold region relative to the cwd
+			root := NewRoot()
+			var out strings.Builder
+			root.SetOut(&out)
+			root.SetArgs([]string{"serve", "--hotset", path})
+			err := root.Execute()
+			if err == nil {
+				t.Fatal("serve accepted a file that is not a profile report")
+			}
+			if !strings.Contains(err.Error(), "profile report") {
+				t.Fatalf("error = %v, want it to say the file is not a profile report", err)
+			}
+			if strings.Contains(out.String(), "hotset:") {
+				t.Fatalf("serve printed a preview before rejecting the file:\n%s", out.String())
+			}
+		})
+	}
+}
+
+// TestServePreviewRendersSubGiBSizes pins the preview's byte rendering to the
+// report's: the demo's 64 KiB cold region used to print as "0.0 GiB" one
+// command after profile printed "64.0 KiB".
+func TestServePreviewRendersSubGiBSizes(t *testing.T) {
+	fixture := demoFixturePath(t)
+	dir := t.TempDir()
+	reportPath := filepath.Join(dir, "demo.report")
+
+	root := NewRoot()
+	var out strings.Builder
+	root.SetOut(&out)
+	root.SetArgs([]string{
+		"profile",
+		"--heat-log", fixture,
+		"--table-bytes", "64KiB",
+		"--entry-bytes", "16",
+		"--coverage", "0.9",
+		"--out", reportPath,
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("profile: %v", err)
+	}
+
+	t.Chdir(dir) // serve maps its cold region relative to the cwd
+	serve := NewRoot()
+	var served strings.Builder
+	serve.SetOut(&served)
+	serve.SetArgs([]string{"serve", "--hotset", reportPath})
+	if err := serve.Execute(); err != nil {
+		t.Fatalf("serve: %v", err)
+	}
+	got := served.String()
+	for _, want := range []string{"cold tier: 64.0 KiB on SSD", "= 32 B RAM"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("serve output missing %q, got:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "0.0 GiB") {
+		t.Fatalf("sub-GiB sizes rendered as 0.0 GiB:\n%s", got)
+	}
+}
